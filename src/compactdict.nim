@@ -217,6 +217,15 @@ proc `$`*[K, V](d: Dict[K, V]): string =
       result.addQuoted(val)
     result.add("}")
 
+proc `=destroy`*[K, V](d: var Dict[K, V]) =
+  d.alloc = 0
+  d.avail = 0
+  d.used = 0
+  if d.indices.pointer != nil:
+    dealloc(d.indices.pointer)
+  d.indices = SparseArray(nil)
+  d.items.setLen(0)
+
 when isMainModule:
   var x: Dict[string, int]
   echo x.repr
