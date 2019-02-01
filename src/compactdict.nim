@@ -205,6 +205,16 @@ iterator pairs*[K, V](d: Dict[K, V]): (K, V) =
     if it != nil:
       yield (it.key, it.val)
 
+iterator keys*[K, V](d: Dict[K, V]): K =
+  for it in d.items:
+    if it != nil:
+      yield it.key
+
+iterator values*[K, V](d: Dict[K, V]): V =
+  for it in d.items:
+    if it != nil:
+      yield it.val
+
 proc `$`*[K, V](d: Dict[K, V]): string =
   if d.len == 0:
     result = "{:}"
