@@ -13,7 +13,7 @@ A compact dictionary implementation kindly borrowed from Python.
 ### Examples
 
 ```nim
-var x = {"foo": 1, "bar": 2}
+var x = {"foo": 1, "bar": 2}.toDict()
 echo x["foo"] # prints 1
 for k, v in x.pairs():
   echo k, " = ", v # prints "foo" = 1 and "bar" = 2
