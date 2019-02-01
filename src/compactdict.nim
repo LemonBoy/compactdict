@@ -26,8 +26,8 @@ const
   SLOT_EMPTY   = -1
   SLOT_DELETED = -2
 
-  DEFAULT_SIZE  = 42
-  DEFAULT_ALLOC = 64
+  DEFAULT_SIZE  = 10
+  DEFAULT_ALLOC = 16
 
 template isPowerOfTwo(x: untyped): untyped = x != 0 and ((x and (x - 1)) == 0)
 
