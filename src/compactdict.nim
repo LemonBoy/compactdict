@@ -2,7 +2,6 @@
 ##
 ## The insertion order of the elements is preserved.
 import hashes
-from sequtils import filterIt
 from bitops import fastLog2
 
 type
@@ -26,6 +25,8 @@ template allocFromAvail(a: int): int = (3 * a + 1) shr 1
 const
   SLOT_EMPTY   = -1
   SLOT_DELETED = -2
+
+  GROWTH_FACTOR = 2
 
   DICT_DEFAULT_SIZE  = 10
 
@@ -62,23 +63,30 @@ proc rehash[K, V](d: var Dict[K, V], newSize: int) =
   # Find the next power of two so that we're able to hold at least ``newSize``
   # entries
   var newAlloc = 1 shl (1 + fastLog2(allocFromAvail(newSize)))
-
-  echo "Reshah"
-
+  # Element size for each entry in the indices array
   let perElem =
     if newAlloc <= 0xff: 1
     elif newAlloc <= 0xffff: 2
     elif newAlloc <= 0xffffffff: 4
     else: 8
 
-  if newAlloc != d.alloc:
-    d.indices = SparseArray(realloc(d.indices.pointer, perElem * newAlloc))
-  # Set all the slots to SLOT_EMPTY
-  nimSetMem(d.indices.pointer, -1, perElem * newAlloc)
+  # Do we have any SLOT_EMPTY in the ``items`` seq?
+  let hasDeletedItems = d.used != d.avail
+
   d.alloc = newAlloc
   d.avail = availFromAlloc(newAlloc)
-  # Drop all the deleted items
-  d.items = d.items.filterIt(it != nil)
+  d.indices = SparseArray(realloc(d.indices.pointer, perElem * newAlloc))
+  # Set all the slots to SLOT_EMPTY
+  nimSetMem(d.indices.pointer, -1, perElem * newAlloc)
+
+  if hasDeletedItems:
+    let oldItems = d.items
+    d.items = newSeqOfCap[type(d.items[0])](d.used)
+    # Drop all the deleted items
+    for it in oldItems:
+      if it != nil: d.items.add(it)
+
+  assert(d.items.len == d.used)
 
   # Re-populate the hash table
   for i, it in d.items:
@@ -111,8 +119,8 @@ proc add*[K, V](d: var Dict[K, V], key: K, val: V) =
   # as deleted
   if d.items.len == d.avail:
     if d.alloc > 0:
-      # Double the size for every reallocation.
-      d.rehash(d.used * 2)
+      # Calculate the new size according to how full the table is
+      d.rehash(d.used * GROWTH_FACTOR)
     else:
       # If `alloc` is zero the object may be uninitialized so let's use a safe
       # value

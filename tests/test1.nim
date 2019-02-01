@@ -4,14 +4,13 @@ import compactdict
 test "Add & remove cycle":
   var x: Dict[string, int]
 
-  for i in 0 ..< 0xffff:
-    x.add("foo" & $i, i)
-
+  for i in 0 ..< 0xffff: x.add("foo" & $i, i)
   doAssert(x.len == 0xffff)
-
-  for i in 0 ..< 0xffff:
-    x.del("foo" & $i)
-
+  for i in 0 ..< 0xffff: x.del("foo" & $i)
+  doAssert(x.len == 0) 
+  for i in 0 ..< 0xffff: x.add("foo" & $i, i)
+  doAssert(x.len == 0xffff) 
+  for i in 0 ..< 0xffff: x.del("foo" & $i)
   doAssert(x.len == 0)
 
 test "String representation":
