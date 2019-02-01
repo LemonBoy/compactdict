@@ -3,6 +3,7 @@
 ## The insertion order of the elements is preserved.
 import hashes
 from sequtils import filterIt
+from bitops import fastLog2
 
 type
   DictItem[K, V] = ref object
@@ -26,14 +27,7 @@ const
   SLOT_EMPTY   = -1
   SLOT_DELETED = -2
 
-  DEFAULT_SIZE  = 10
-  DEFAULT_ALLOC = 16
-
-template isPowerOfTwo(x: untyped): untyped = x != 0 and ((x and (x - 1)) == 0)
-
-static:
-  doAssert isPowerOfTwo(DEFAULT_ALLOC),
-    "The default allocation size for the indices array must be a power of two"
+  DICT_DEFAULT_SIZE  = 10
 
 template nextTry(h, maxHash: Hash): untyped = ((5*h) + 1) and maxHash
 
@@ -64,8 +58,12 @@ proc c_memset(p: pointer, value: cint, size: csize): pointer {.
 proc nimSetMem(a: pointer, v: cint, size: Natural) {.inline.} =
   c_memset(a, v, size)
 
-proc rehash[K, V](d: var Dict[K, V], newAlloc: int) =
-  assert isPowerOfTwo(newAlloc)
+proc rehash[K, V](d: var Dict[K, V], newSize: int) =
+  # Find the next power of two so that we're able to hold at least ``newSize``
+  # entries
+  var newAlloc = 1 shl (1 + fastLog2(allocFromAvail(newSize)))
+
+  echo "Reshah"
 
   let perElem =
     if newAlloc <= 0xff: 1
@@ -75,7 +73,8 @@ proc rehash[K, V](d: var Dict[K, V], newAlloc: int) =
 
   if newAlloc != d.alloc:
     d.indices = SparseArray(realloc(d.indices.pointer, perElem * newAlloc))
-    nimSetMem(d.indices.pointer, -1, perElem * newAlloc)
+  # Set all the slots to SLOT_EMPTY
+  nimSetMem(d.indices.pointer, -1, perElem * newAlloc)
   d.alloc = newAlloc
   d.avail = availFromAlloc(newAlloc)
   # Drop all the deleted items
@@ -86,11 +85,8 @@ proc rehash[K, V](d: var Dict[K, V], newAlloc: int) =
     let (i1, _) = d.lookup(it.key, it.hash)
     d.indices[i1] = i
 
-proc initDict*[K, V](initialSize = DEFAULT_SIZE): Dict[K, V] =
-  var allocSize = 1
-  while allocSize < initialSize:
-    allocSize = allocSize shl 1
-  result.rehash(allocSize)
+proc initDict*[K, V](initialSize = DICT_DEFAULT_SIZE): Dict[K, V] =
+  result.rehash(initialSize)
 
 proc lookup*[K, V](d: Dict[K, V], key: K, h: Hash): (int, int) =
   let mask = d.alloc - 1
@@ -110,12 +106,17 @@ proc lookup*[K, V](d: Dict[K, V], key: K, h: Hash): (int, int) =
   doAssert false
 
 proc add*[K, V](d: var Dict[K, V], key: K, val: V) =
+  # Is there room for another element?
   # Don't check `used` here as that doesn't take into account the slots marked
   # as deleted
   if d.items.len == d.avail:
-    # Double the size for every reallocation. If `alloc` is zero the object may
-    # be uninitialized so let's use a safe value
-    d.rehash(if d.alloc > 0: d.alloc shl 1 else: DEFAULT_ALLOC)
+    if d.alloc > 0:
+      # Double the size for every reallocation.
+      d.rehash(d.used * 2)
+    else:
+      # If `alloc` is zero the object may be uninitialized so let's use a safe
+      # value
+      d.rehash(DICT_DEFAULT_SIZE)
 
   let h = hash(key)
   let (i1, i2) = d.lookup(key, h)
@@ -179,7 +180,7 @@ proc clear*[K, V](d: var Dict[K, V]) =
   d.items.setLen(0)
   d.used = 0
   # Lazy way to reset the inner state
-  d.rehash(d.alloc)
+  d.rehash(DICT_DEFAULT_SIZE)
 
 proc `==`*[K, V](d1, d2: Dict[K, V]): bool =
   if d1.len != d2.len:
@@ -235,35 +236,3 @@ proc `=destroy`*[K, V](d: var Dict[K, V]) =
     dealloc(d.indices.pointer)
   d.indices = SparseArray(nil)
   d.items.setLen(0)
-
-when isMainModule:
-  var x: Dict[string, int]
-  echo x.repr
-
-  for i in 0..<255:
-    x.add("foo" & $i, i)
-
-  echo "added!"
-
-  echo x.get("foo128")
-  x.del("foo129")
-  echo x.len
-
-  echo x
-
-  let x1 = {"foo": 4, "bar": 5}.toDict()
-  echo x1.len
-  for x, y in pairs(x1): echo x, "=", y
-  doAssert x1["foo"] == 4
-  doAssert x1["bar"] == 5
-  doAssertRaises(KeyError):
-    discard x1["baz"]
-  let x2 = {"foo": 4, "bar": 5}.toDict()
-  doAssert x1 == x2
-  var x3 = {"foo": 4, "qux": 99, "bar": 5}.toDict()
-  doAssert x1 != x3
-  x3.del("qux")
-  doAssert x1 == x3
-  echo x1
-  echo x2
-  echo x3
