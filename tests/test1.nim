@@ -17,6 +17,8 @@ test "Add & remove cycle":
 test "String representation":
   var x1 = {"foo": 42, "bar": 9}.toDict
   doAssert($x1 == "{\"foo\": 42, \"bar\": 9}")
+  var x2: Dict[int, int]
+  doAssert($x2 == "{:}")
 
 test "Raises KeyError":
   var x1 = {"foo": 42, "bar": 9}.toDict
