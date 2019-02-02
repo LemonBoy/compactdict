@@ -59,6 +59,8 @@ proc c_memset(p: pointer, value: cint, size: csize): pointer {.
 proc nimSetMem(a: pointer, v: cint, size: Natural) {.inline.} =
   c_memset(a, v, size)
 
+proc findEmptySlot[K, V](d: Dict[K, V], h: Hash): int {.inline.}
+
 proc rehash[K, V](d: var Dict[K, V], newSize: int) =
   # Find the next power of two so that we're able to hold at least ``newSize``
   # entries
@@ -90,11 +92,27 @@ proc rehash[K, V](d: var Dict[K, V], newSize: int) =
 
   # Re-populate the hash table
   for i, it in d.items:
-    let (i1, _) = d.lookup(it.key, it.hash)
+    let i1 = d.findEmptySlot(it.hash)
     d.indices[i1] = i
 
 proc initDict*[K, V](initialSize = DICT_DEFAULT_SIZE): Dict[K, V] =
   result.rehash(initialSize)
+
+proc findEmptySlot[K, V](d: Dict[K, V], h: Hash): int =
+  # Find an empty slot where ``h`` can be placed.
+  # Similar in spirit to ``lookup`` but doesn't perform any unnecessary check
+  let mask = d.alloc - 1
+  var i = h and mask
+
+  while true:
+    let idx = d.indices[i]
+    # Follow the chain until a free slot is found
+    if idx == SLOT_EMPTY:
+      return i
+
+    i = nextTry(i, mask)
+
+  doAssert false
 
 proc lookup*[K, V](d: Dict[K, V], key: K, h: Hash): (int, int) =
   let mask = d.alloc - 1
@@ -244,3 +262,7 @@ proc `=destroy`*[K, V](d: var Dict[K, V]) =
     dealloc(d.indices.pointer)
   d.indices = SparseArray(nil)
   d.items.setLen(0)
+
+when isMainModule:
+  var x = initDict[string,int](high(int) div 4)
+  echo x
