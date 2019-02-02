@@ -264,7 +264,3 @@ proc `=destroy`*[K, V](d: var Dict[K, V]) =
     dealloc(d.indices.pointer)
   d.indices = SparseArray(nil)
   d.items.setLen(0)
-
-when isMainModule:
-  var x = initDict[string,int](high(int) div 4)
-  echo x
