@@ -19,6 +19,8 @@ type
     items: seq[DictItem[K, V]]
     indices: SparseArray
 
+# Calculate the number of available slots needed to be able to fit N elements
+# with a load factor of 2/3
 template availFromAlloc(s: int): int = (s shl 1) div 3
 template allocFromAvail(a: int): int = (3 * a + 1) shr 1
 
