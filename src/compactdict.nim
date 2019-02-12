@@ -162,6 +162,16 @@ proc add*[K, V](d: var Dict[K, V], key: K, val: V) =
     d.items[i2].val = val
 
 proc get*[K, V](d: Dict[K, V], key: K): V =
+  template raiseKeyError() =
+    when compiles($key):
+      raise newException(KeyError, "key not found: " & $key)
+    else:
+      raise newException(KeyError, "key not found")
+
+  if d.alloc < 1:
+    # The dictionary is empty
+    raiseKeyError()
+
   let h = hash(key)
   let (_, i2) = d.lookup(key, h)
 
@@ -173,7 +183,23 @@ proc get*[K, V](d: Dict[K, V], key: K): V =
 
   result = d.items[i2].val
 
+proc getOrDefault*[K, V](d: Dict[K, V], key: K, default: V): V =
+  result = default
+
+  if d.alloc < 1:
+    # The dictionary is empty
+    return
+
+  let h = hash(key)
+  let (_, i2) = d.lookup(key, h)
+
+  if i2 != SLOT_EMPTY:
+    result = d.items[i2].val
+
 proc del*[K, V](d: var Dict[K, V], key: K) =
+  if d.alloc < 1:
+    return
+
   let h = hash(key)
   let (i1, i2) = d.lookup(key, h)
 
@@ -185,6 +211,9 @@ proc del*[K, V](d: var Dict[K, V], key: K) =
   dec d.used
 
 proc contains*[K, V](d: Dict[K, V], key: K): bool =
+  if d.alloc < 1:
+    return false
+
   let h = hash(key)
   let (_, i2) = d.lookup(key, h)
 
